@@ -47,7 +47,7 @@ continue_reading = True
 # Called for every client connecting (after handshake)
 def new_client(client, server):
         print("New client connected and was given id %d" % client['id'])
-        server.send_message_to_all("Hey all, a new client has joined us")
+        # server.send_message_to_all("Hey all, a new client has joined us")
 
 
 # Called for every client disconnecting
@@ -61,12 +61,22 @@ def message_received(client, server, message):
                 message = message[:200]+'..'
         print("Client(%d) said: %s" % (client['id'], message))
 
+
+# Called for every client connecting (after handshake)
+def send_message_client(client, server):
+        print("client data %d", client)
+        msg = "id sent to client %d" % client['id']
+        print(msg)
+        server.send_message_to_all(msg)
+
+
 # Capture SIGINT for cleanup when the script is aborted
 def end_read(signal,frame):
     global continue_reading
     print "Ctrl+C captured, ending read."
     continue_reading = False
     GPIO.cleanup()
+
 
 if __name__ == "__main__":
 
@@ -84,6 +94,7 @@ if __name__ == "__main__":
     server.set_fn_new_client(new_client)
     server.set_fn_client_left(client_left)
     server.set_fn_message_received(message_received)
+    server.send_message_to_all(send_message_client)
     wst = threading.Thread(target=server.run_forever)
     wst.daemon = True
     wst.start()
@@ -97,27 +108,66 @@ if __name__ == "__main__":
 
     # Welcome message
     #print "Welcome to the MFRC522 data read example"
-    print "Qwiqfire Sensor Suite is running"
+    print "\nQwiqfire Sensor Suite is running\n"
 
     #cmd = "AT\r\n"
+    # Get machine serial number
     cmd = 'Q100\r'
     cmd = ser.write(bytes(cmd))
     #ser.write(cmd.encode('ascii'))
     response = ser.readline()
-    print 'Init response is: ' + response + '\r\n'
+    print 'Machine Serial Number is: ' + response + '\n'
     print list(response)
 
+    # Get control software version
+    cmd = 'Q101\r'
+    cmd = ser.write(bytes(cmd))
+    response = ser.readline()
+    print 'Control software version is: ' + response + '\n'
+
+    # Get machine model number
+    cmd = 'Q102\r'
+    cmd = ser.write(bytes(cmd))
+    response = ser.readline()
+    print 'Machine model number is: ' + response + '\n'
+
+    # Get mode
+    cmd = 'Q104\r'
+    cmd = ser.write(bytes(cmd))
+    response = ser.readline()
+    print 'Mode is: ' + response + '\n'
+
+    # Get tool number in use
+    cmd = 'Q201\r'
+    cmd = ser.write(bytes(cmd))
+    response = ser.readline()
+    print 'Tool number in use: ' + response + '\n'
+
+    # Get power on time total
+    cmd = 'Q300\r'
+    cmd = ser.write(bytes(cmd))
+    response = ser.readline()
+    print 'Power-On time (total): ' + response + '\n'
+
+    # Get motion time total
+    cmd = 'Q301\r'
+    cmd = ser.write(bytes(cmd))
+    response = ser.readline()
+    print 'Motion time (total): ' + response + '\n'
+
+    # Get last cycle time
     cmd = 'Q303\r'
     cmd = ser.write(bytes(cmd))
     response = ser.readline()
-    print 'Response for Q303 is: ' + response + '\r\n'
+    print 'Last Cycle Time was: ' + response + '\n'
 
+    # Get previous cycle time
     cmd = 'Q304\r'
     cmd = ser.write(bytes(cmd))
     response = ser.readline()
-    print 'Response for Q304 is: ' + response + '\r\n'
+    print 'Previous Cycle Time was: ' + response + '\n'
 
-    print "Press Ctrl-C to stop.\r\n"
+    # print "Press Ctrl-C to stop.\n"
 
     # This loop keeps checking for chips. If one is near it will get the UID and authenticate
     while continue_reading:
@@ -142,7 +192,7 @@ if __name__ == "__main__":
         if status == MIFAREReader.MI_OK:
 
             # Print UID
-            print "Card read UID: %s,%s,%s,%s" % (uid[0], uid[1], uid[2], uid[3])
+            # print "Card read UID: %s,%s,%s,%s" % (uid[0], uid[1], uid[2], uid[3])
 
             # This is the default key for authentication
             key = [0xFF,0xFF,0xFF,0xFF,0xFF,0xFF]
@@ -156,18 +206,23 @@ if __name__ == "__main__":
             # Check if authenticated
             if status == MIFAREReader.MI_OK:
                 empID = MIFAREReader.MFRC522_Read(8)
-                text = "".join(chr(x) for x in empID)
-                print text
+                print empID
 
+                # Get M30 parts counter #1
                 #ser.write('Q402' + '\r\n')
                 ser.write('Q402' + '\r\n')
                 #response = ser.readline()
                 #print 'Parts Counter \#1 response is: ' + response + '\n\n'
                 #ser.write(text.encode('ascii') + '\r\n')
 
+                # Get M30 parts counter #2
                 ser.write('Q403' + '\r\n')
                 #response = ser.readline()
                 #print 'Parts Counter \#2 response is: ' + response + '\r\n'
+
+                text = "".join(chr(x) for x in empID)
+                print text
+                server.send_message_to_all(text)
 
                 MIFAREReader.MFRC522_StopCrypto1()
             else:
