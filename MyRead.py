@@ -28,6 +28,9 @@ import time
 import serial
 import string
 import threading
+import json
+import datetime
+from StringIO import StringIO
 
 from websocket_server import WebsocketServer
 
@@ -115,57 +118,21 @@ if __name__ == "__main__":
     cmd = 'Q100\r'
     cmd = ser.write(bytes(cmd))
     #ser.write(cmd.encode('ascii'))
-    response = ser.readline()
-    print 'Machine Serial Number is: ' + response + '\n'
-    print list(response)
+    Q100_response = ser.readline()
+    print 'Machine Serial Number is: ' + Q100_response + '\n'
+    # print list(response)
 
     # Get control software version
     cmd = 'Q101\r'
     cmd = ser.write(bytes(cmd))
-    response = ser.readline()
-    print 'Control software version is: ' + response + '\n'
+    Q101_response = ser.readline()
+    print 'Control software version is: ' + Q101_response + '\n'
 
     # Get machine model number
     cmd = 'Q102\r'
     cmd = ser.write(bytes(cmd))
-    response = ser.readline()
-    print 'Machine model number is: ' + response + '\n'
-
-    # Get mode
-    cmd = 'Q104\r'
-    cmd = ser.write(bytes(cmd))
-    response = ser.readline()
-    print 'Mode is: ' + response + '\n'
-
-    # Get tool number in use
-    cmd = 'Q201\r'
-    cmd = ser.write(bytes(cmd))
-    response = ser.readline()
-    print 'Tool number in use: ' + response + '\n'
-
-    # Get power on time total
-    cmd = 'Q300\r'
-    cmd = ser.write(bytes(cmd))
-    response = ser.readline()
-    print 'Power-On time (total): ' + response + '\n'
-
-    # Get motion time total
-    cmd = 'Q301\r'
-    cmd = ser.write(bytes(cmd))
-    response = ser.readline()
-    print 'Motion time (total): ' + response + '\n'
-
-    # Get last cycle time
-    cmd = 'Q303\r'
-    cmd = ser.write(bytes(cmd))
-    response = ser.readline()
-    print 'Last Cycle Time was: ' + response + '\n'
-
-    # Get previous cycle time
-    cmd = 'Q304\r'
-    cmd = ser.write(bytes(cmd))
-    response = ser.readline()
-    print 'Previous Cycle Time was: ' + response + '\n'
+    Q102_response = ser.readline()
+    print 'Machine model number is: ' + Q102_response + '\n'
 
     # print "Press Ctrl-C to stop.\n"
 
@@ -178,6 +145,7 @@ if __name__ == "__main__":
         # If a card is found
         if status == MIFAREReader.MI_OK:
             print "Card detected"
+            server.send_message_to_all('{"message": "scan_complete"}')
         else:
         	response = ser.readline()
 
@@ -208,21 +176,66 @@ if __name__ == "__main__":
                 empID = MIFAREReader.MFRC522_Read(8)
                 print empID
 
+                # Get mode
+                cmd = 'Q104\r'
+                cmd = ser.write(bytes(cmd))
+                Q104_response = ser.readline()
+                print 'Mode is: ' + Q104_response + '\n'
+
+                # Get tool number in use
+                cmd = 'Q201\r'
+                cmd = ser.write(bytes(cmd))
+                Q201_response = ser.readline()
+                print 'Tool number in use: ' + Q201_response + '\n'
+
+                # Get power on time total
+                cmd = 'Q300\r'
+                cmd = ser.write(bytes(cmd))
+                Q300_response = ser.readline()
+                print 'Power-On time (total): ' + Q300_response + '\n'
+
+                # Get motion time total
+                cmd = 'Q301\r'
+                cmd = ser.write(bytes(cmd))
+                Q301_response = ser.readline()
+                print 'Motion time (total): ' + Q301_response + '\n'
+
+                # Get last cycle time
+                cmd = 'Q303\r'
+                cmd = ser.write(bytes(cmd))
+                Q303_response = ser.readline()
+                print 'Last Cycle Time was: ' + Q303_response + '\n'
+
+                # Get previous cycle time
+                cmd = 'Q304\r'
+                cmd = ser.write(bytes(cmd))
+                Q304_response = ser.readline()
+                print 'Previous Cycle Time was: ' + Q304_response + '\n'
+
                 # Get M30 parts counter #1
                 #ser.write('Q402' + '\r\n')
-                ser.write('Q402' + '\r\n')
-                #response = ser.readline()
-                #print 'Parts Counter \#1 response is: ' + response + '\n\n'
+                ser.write('Q402' + '\r')
+                Q402_response = ser.readline()
+                print 'Parts Counter \#1 response is: ' + Q402_response + '\n\n'
                 #ser.write(text.encode('ascii') + '\r\n')
 
                 # Get M30 parts counter #2
-                ser.write('Q403' + '\r\n')
-                #response = ser.readline()
-                #print 'Parts Counter \#2 response is: ' + response + '\r\n'
+                ser.write('Q403' + '\r')
+                Q403_response = ser.readline()
+                print 'Parts Counter \#2 response is: ' + Q403_response + '\r\n'
+
+                createdAt = datetime.datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
+                status = "Active"
 
                 text = "".join(chr(x) for x in empID)
                 print text
-                server.send_message_to_all(text)
+
+                # Create JSON object for messaging and database post
+                io = StringIO()
+                jsonResponse = '{"userID": "' + str(text) + '", "Q100": "' + str(Q100_response) + '", "Q101": "' + str(Q101_response) + '", "Q102": "' +  str(Q102_response) + '", "Q104": "' + str(Q104_response) + '", "Q201": "' + str(Q201_response) + '", "Q300": "' + str(Q300_response) + '", "Q301": "' + str(Q301_response) + '", "Q303": "' + str(Q303_response) + '", "Q304": "' + str(Q304_response) + '", "Q402": "' + str(Q402_response) + '", "Q403": "' + str(Q403_response) + '", "createdAt": "' + str(createdAt) + '", "status": "' + str(status) + '"}'
+                # json_data = json.dumps(jsonResponse, io)
+
+                server.send_message_to_all(jsonResponse)
 
                 MIFAREReader.MFRC522_StopCrypto1()
             else:
