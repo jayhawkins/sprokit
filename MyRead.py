@@ -70,6 +70,13 @@ def send_message_client(client, server):
         print("client data %d", client)
         msg = "id sent to client %d" % client['id']
         print(msg)
+        # server.send_message_to_all(msg)
+
+# Called for every client connecting (after handshake)
+def send_message_to_all(client, server, msg):
+        print("client data %d", client)
+        msg = "id sent to client %d" % client['id']
+        print(msg)
         server.send_message_to_all(msg)
 
 
@@ -97,7 +104,8 @@ if __name__ == "__main__":
     server.set_fn_new_client(new_client)
     server.set_fn_client_left(client_left)
     server.set_fn_message_received(message_received)
-    server.send_message_to_all(send_message_client)
+    server.send_message_to_all(send_message_to_all)
+    # server.send_message_to_all(send_message_client)
     wst = threading.Thread(target=server.run_forever)
     wst.daemon = True
     wst.start()
@@ -214,15 +222,15 @@ if __name__ == "__main__":
 
                 # Get M30 parts counter #1
                 #ser.write('Q402' + '\r\n')
-                ser.write('Q402' + '\r')
+                ser.write('Q402\r')
                 Q402_response = ser.readline()
-                print 'Parts Counter \#1 response is: ' + Q402_response + '\n\n'
+                print 'Parts Counter #1 response is: ' + Q402_response + '\n\n'
                 #ser.write(text.encode('ascii') + '\r\n')
 
                 # Get M30 parts counter #2
-                ser.write('Q403' + '\r')
+                ser.write('Q403\r')
                 Q403_response = ser.readline()
-                print 'Parts Counter \#2 response is: ' + Q403_response + '\r\n'
+                print 'Parts Counter #2 response is: ' + Q403_response + '\r\n'
 
                 createdAt = datetime.datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
                 status = "Active"
@@ -235,7 +243,12 @@ if __name__ == "__main__":
                 jsonResponse = '{"userID": "' + str(text) + '", "Q100": "' + str(Q100_response) + '", "Q101": "' + str(Q101_response) + '", "Q102": "' +  str(Q102_response) + '", "Q104": "' + str(Q104_response) + '", "Q201": "' + str(Q201_response) + '", "Q300": "' + str(Q300_response) + '", "Q301": "' + str(Q301_response) + '", "Q303": "' + str(Q303_response) + '", "Q304": "' + str(Q304_response) + '", "Q402": "' + str(Q402_response) + '", "Q403": "' + str(Q403_response) + '", "createdAt": "' + str(createdAt) + '", "status": "' + str(status) + '"}'
                 # json_data = json.dumps(jsonResponse, io)
 
-                server.send_message_to_all(jsonResponse)
+                jobNumber = 123
+                Q100_response = "VER M16.01"
+                Q300_response = "00027:50:59"
+                messageResponse = '{"userID": "' + str(text) + '", "jobNumber": "' + str(jobNumber) + '", "Q100": "' + Q100_response + '", "Q300": "' + str(Q300_response) + '", "createdAt": "' + str(createdAt) + '"}'
+
+                server.send_message_to_all(messageResponse)
 
                 MIFAREReader.MFRC522_StopCrypto1()
             else:
