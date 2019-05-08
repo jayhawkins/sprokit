@@ -35,6 +35,10 @@ from StringIO import StringIO
 from websocket_server import WebsocketServer
 
 continue_reading = True
+card_scanned = False
+jobNumber = ""
+employeeID = ""
+empID = 0
 
 ##port='/dev/ttyAMA0',
 ##port='/dev/ttyS0',
@@ -60,10 +64,22 @@ def client_left(client, server):
 
 # Called when a client sends a message
 def message_received(client, server, message):
+        global jobNumber
+        global card_scanned
+
         if len(message) > 200:
                 message = message[:200]+'..'
         print("Client(%d) said: %s" % (client['id'], message))
-
+        newMessage = json.loads(message)
+        print(newMessage)
+        print(newMessage['status'])
+        print(newMessage['jobNumber'])
+        if str(newMessage['status']) == "success":
+            card_scanned = False
+            jobNumber = str(newMessage['jobNumber'])
+        elif str(newMessage['status']) == "failed":
+            card_scanned = False
+            jobNumber = ""
 
 # Called for every client connecting (after handshake)
 def send_message_client(client, server):
@@ -151,105 +167,155 @@ if __name__ == "__main__":
         (status,TagType) = MIFAREReader.MFRC522_Request(MIFAREReader.PICC_REQIDL)
 
         # If a card is found
-        if status == MIFAREReader.MI_OK:
+        if status == MIFAREReader.MI_OK and card_scanned == False:
             print "Card detected"
-            server.send_message_to_all('{"message": "scan_complete"}')
-        else:
-        	response = ser.readline()
 
-    	if response != '':
-    	    print 'Response is: ' + response + '\r\n'
+            # Get the UID of the card
+            (status,uid) = MIFAREReader.MFRC522_Anticoll()
+
+            # If we have the UID, continue
+            if status == MIFAREReader.MI_OK:
+
+                # Print UID
+                print "Card read UID: %s,%s,%s,%s" % (uid[0], uid[1], uid[2], uid[3])
+
+                # This is the default key for authentication
+                key = [0xFF,0xFF,0xFF,0xFF,0xFF,0xFF]
+
+                # Select the scanned tag
+                status = MIFAREReader.MFRC522_SelectTag(uid)
+
+                # Authenticate
+                status = MIFAREReader.MFRC522_Auth(MIFAREReader.PICC_AUTHENT1A, 8, key, uid)
+
+                # Check if authenticated
+                if status == MIFAREReader.MI_OK:
+                    empID = MIFAREReader.MFRC522_Read(8)
+                    employeeID = "".join(chr(x) for x in empID)
+                    # print sum(empID)
+                    MIFAREReader.MFRC522_StopCrypto1()
+                    if sum(empID) > 0:
+                        print "Card Scanned. Message Client."
+                        card_scanned = True
+                        server.send_message_to_all('{"message": "scan_complete"}')
+                    else:
+                        print 'Invalid Job Number or Card is not configured'
+                        # card_scanned = True
+                        server.send_message_to_all('{"message": "empID_empty"}')
+                else:
+                    print "Authentication error"
+
+
+        # print jobNumber
+        # print card_scanned
+
+        # # If a card is found
+        # if card_scanned == False and jobNumber == "":
+        #     print "Card Scanned. Message Client."
+        #     card_scanned = True
+        #     server.send_message_to_all('{"message": "scan_complete"}')
+        # else:
+        #     response = 'Invalid Job Number or Card is not configured'
+
+    	# if response != '':
+    	#     print 'Response is: ' + response + '\r\n'
 
 
         # Get the UID of the card
-        (status,uid) = MIFAREReader.MFRC522_Anticoll()
+        # (status,uid) = MIFAREReader.MFRC522_Anticoll()
 
         # If we have the UID, continue
-        if status == MIFAREReader.MI_OK:
+        # if status == MIFAREReader.MI_OK and card_scanned == False:
+        if card_scanned == False and jobNumber != "" and sum(empID) > 0:
 
             # Print UID
             # print "Card read UID: %s,%s,%s,%s" % (uid[0], uid[1], uid[2], uid[3])
 
             # This is the default key for authentication
-            key = [0xFF,0xFF,0xFF,0xFF,0xFF,0xFF]
+            # key = [0xFF,0xFF,0xFF,0xFF,0xFF,0xFF]
 
             # Select the scanned tag
-            MIFAREReader.MFRC522_SelectTag(uid)
+            # MIFAREReader.MFRC522_SelectTag(uid)
 
             # Authenticate
-            status = MIFAREReader.MFRC522_Auth(MIFAREReader.PICC_AUTHENT1A, 8, key, uid)
+            # status = MIFAREReader.MFRC522_Auth(MIFAREReader.PICC_AUTHENT1A, 8, key, uid)
 
             # Check if authenticated
-            if status == MIFAREReader.MI_OK:
-                empID = MIFAREReader.MFRC522_Read(8)
-                print empID
+            # if status == MIFAREReader.MI_OK:
+            #     empID = MIFAREReader.MFRC522_Read(8)
+            #     print empID
 
-                # Get mode
-                cmd = 'Q104\r'
-                cmd = ser.write(bytes(cmd))
-                Q104_response = ser.readline()
-                print 'Mode is: ' + Q104_response + '\n'
 
-                # Get tool number in use
-                cmd = 'Q201\r'
-                cmd = ser.write(bytes(cmd))
-                Q201_response = ser.readline()
-                print 'Tool number in use: ' + Q201_response + '\n'
+            # Indent this if we bring back the if status check just above
+            # Get mode
+            cmd = 'Q104\r'
+            cmd = ser.write(bytes(cmd))
+            Q104_response = ser.readline()
+            print 'Mode is: ' + Q104_response + '\n'
 
-                # Get power on time total
-                cmd = 'Q300\r'
-                cmd = ser.write(bytes(cmd))
-                Q300_response = ser.readline()
-                print 'Power-On time (total): ' + Q300_response + '\n'
+            # Get tool number in use
+            cmd = 'Q201\r'
+            cmd = ser.write(bytes(cmd))
+            Q201_response = ser.readline()
+            print 'Tool number in use: ' + Q201_response + '\n'
 
-                # Get motion time total
-                cmd = 'Q301\r'
-                cmd = ser.write(bytes(cmd))
-                Q301_response = ser.readline()
-                print 'Motion time (total): ' + Q301_response + '\n'
+            # Get power on time total
+            cmd = 'Q300\r'
+            cmd = ser.write(bytes(cmd))
+            Q300_response = ser.readline()
+            print 'Power-On time (total): ' + Q300_response + '\n'
 
-                # Get last cycle time
-                cmd = 'Q303\r'
-                cmd = ser.write(bytes(cmd))
-                Q303_response = ser.readline()
-                print 'Last Cycle Time was: ' + Q303_response + '\n'
+            # Get motion time total
+            cmd = 'Q301\r'
+            cmd = ser.write(bytes(cmd))
+            Q301_response = ser.readline()
+            print 'Motion time (total): ' + Q301_response + '\n'
 
-                # Get previous cycle time
-                cmd = 'Q304\r'
-                cmd = ser.write(bytes(cmd))
-                Q304_response = ser.readline()
-                print 'Previous Cycle Time was: ' + Q304_response + '\n'
+            # Get last cycle time
+            cmd = 'Q303\r'
+            cmd = ser.write(bytes(cmd))
+            Q303_response = ser.readline()
+            print 'Last Cycle Time was: ' + Q303_response + '\n'
 
-                # Get M30 parts counter #1
-                #ser.write('Q402' + '\r\n')
-                ser.write('Q402\r')
-                Q402_response = ser.readline()
-                print 'Parts Counter #1 response is: ' + Q402_response + '\n\n'
-                #ser.write(text.encode('ascii') + '\r\n')
+            # Get previous cycle time
+            cmd = 'Q304\r'
+            cmd = ser.write(bytes(cmd))
+            Q304_response = ser.readline()
+            print 'Previous Cycle Time was: ' + Q304_response + '\n'
 
-                # Get M30 parts counter #2
-                ser.write('Q403\r')
-                Q403_response = ser.readline()
-                print 'Parts Counter #2 response is: ' + Q403_response + '\r\n'
+            # Get M30 parts counter #1
+            #ser.write('Q402' + '\r\n')
+            ser.write('Q402\r')
+            Q402_response = ser.readline()
+            print 'Parts Counter #1 response is: ' + Q402_response + '\n\n'
+            #ser.write(text.encode('ascii') + '\r\n')
 
-                createdAt = datetime.datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
-                status = "Active"
+            # Get M30 parts counter #2
+            ser.write('Q403\r')
+            Q403_response = ser.readline()
+            print 'Parts Counter #2 response is: ' + Q403_response + '\r\n'
 
-                text = "".join(chr(x) for x in empID)
-                print text
+            createdAt = datetime.datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
+            status = "Active"
 
-                # Create JSON object for messaging and database post
-                io = StringIO()
-                jsonResponse = '{"userID": "' + str(text) + '", "Q100": "' + str(Q100_response) + '", "Q101": "' + str(Q101_response) + '", "Q102": "' +  str(Q102_response) + '", "Q104": "' + str(Q104_response) + '", "Q201": "' + str(Q201_response) + '", "Q300": "' + str(Q300_response) + '", "Q301": "' + str(Q301_response) + '", "Q303": "' + str(Q303_response) + '", "Q304": "' + str(Q304_response) + '", "Q402": "' + str(Q402_response) + '", "Q403": "' + str(Q403_response) + '", "createdAt": "' + str(createdAt) + '", "status": "' + str(status) + '"}'
-                # json_data = json.dumps(jsonResponse, io)
+            # text = "".join(chr(x) for x in empID)
+            text = employeeID
+            print text
 
-                jobNumber = 123
-                Q100_response = "VER M16.01"
-                Q300_response = "00027:50:59"
-                messageResponse = '{"userID": "' + str(text) + '", "jobNumber": "' + str(jobNumber) + '", "Q100": "' + Q100_response + '", "Q300": "' + str(Q300_response) + '", "createdAt": "' + str(createdAt) + '"}'
+            # Create JSON object for messaging and database post
+            jsonResponse = '{"userID": "' + str(text) + '", "Q100": "' + str(Q100_response) + '", "Q101": "' + str(Q101_response) + '", "Q102": "' +  str(Q102_response) + '", "Q104": "' + str(Q104_response) + '", "Q201": "' + str(Q201_response) + '", "Q300": "' + str(Q300_response) + '", "Q301": "' + str(Q301_response) + '", "Q303": "' + str(Q303_response) + '", "Q304": "' + str(Q304_response) + '", "Q402": "' + str(Q402_response) + '", "Q403": "' + str(Q403_response) + '", "createdAt": "' + str(createdAt) + '", "status": "' + str(status) + '"}'
 
-                server.send_message_to_all(messageResponse)
+            Q100_response = "VER M16.01"
+            Q300_response = "00027:50:59"
+            messageResponse = '{"userID": "' + str(text) + '", "jobNumber": "' + jobNumber + '", "Q100": "' + Q100_response + '", "Q300": "' + str(Q300_response) + '", "createdAt": "' + str(createdAt) + '"}'
 
-                MIFAREReader.MFRC522_StopCrypto1()
-            else:
-                print "Authentication error"
+            server.send_message_to_all(messageResponse)
+
+            # MIFAREReader.MFRC522_StopCrypto1()
+
+            jobNumber = ""
+            employeeID = ""
+            empID = 0
+            # Activate this if we bring back the if status check above
+            # else:
+            #     print "Authentication error"
