@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="icon" href="images/favicon.ico">
+
+    <title>Sprokit</title>
+
+    <link rel="canonical" href="https://getbootstrap.com/docs/4.0/examples/starter-template/">
+
+    <!-- Bootstrap core CSS -->
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font-Awesome core CSS -->
+    <link href="css/font-awesome.css" rel="stylesheet">
+    <!--link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css"-->
+
+    <!-- Custom styles for this template -->
+    <link href="css/starter-template.css" rel="stylesheet">
+
+    <!-- Custom styles for DataTables Library -->
+    <link href="css/datatables.css" rel="stylesheet">
+    <link href="css/dataTables.jqueryui.css" rel="stylesheet">
+
+    <script type="text/javascript">
+    var ws;
+    var errorNumber = '';
+
+    function init() {
+      // Connect to Web Socket
+      ws = new WebSocket("ws://192.168.1.139:9001/");
+
+      // Set event handlers.
+      ws.onopen = function() {
+        // output("onopen: WebSocket is open now.");
+        $("#connected").show();
+        errorNumber = 1;
+        $("#jobNumber").focus();
+      };
+
+      ws.onmessage = function(e) {
+        $('#alert').hide();
+        // e.data contains received string.
+        if ($("#jobNumber").val() == '' && errorNumber == 1 ) {
+            var message = "No job number specified";
+            output(message);
+            ws.send('{"status": "failed", "jobNumber": "' + message + '"}');
+            $('#alert').html('<strong>Warning!</strong> You must provide a Job Number!');
+            $("#alert").attr('class', '');
+            $("#alert").attr('class', "alert alert-warning alert-dismissible fade show");
+            $('#alert').show();
+            $("#jobNumber").focus();
+        } else {
+            console.log(JSON.parse(e.data));
+            var data = JSON.parse(e.data);
+
+            if (data.message == "scan_complete") {
+                console.log(data.message);
+
+                // output("onmessage: " + data.message);
+                output(data.message);
+                ws.send('{"status": "success", "jobNumber": "' + $("#jobNumber").val() + '"}');
+
+                $('.modal').modal('show');
+
+            } else if (data.message == "empID_empty") {
+
+                $('#alert').html('<strong>Warning!</strong> Card may not be configured. No employeed ID found!');
+                $("#alert").attr('class', '');
+                $("#alert").attr('class', "alert alert-warning alert-dismissible fade show");
+                $('#alert').show();
+
+                $('.modal').modal('hide');
+
+            } else {
+                // output("onmessage: " + e.data);
+                output(data);
+
+                $('.modal').modal('hide');
+
+                var t = $('#example').DataTable();
+                t.row.add( [
+                    data.userID,
+                    data.jobNumber,
+                    data.Q100,
+                    data.Q300,
+                    data.createdAt
+                ] ).draw( false );
+            }
+        }
+      };
+
+      ws.onclose = function(e) {
+        // output("onclose: WebSocket is closed now.");
+        // $("#alert").hide();
+        $("#connected").hide();
+        // errorNumber = '';
+        $("#jobNumber").blur();
+      };
+
+      ws.onerror = function(e) {
+
+        var error;
+        var theClass;
+        errorNumber = e.target.readyState;
+
+        switch (e.target.readyState) {
+           case 0:
+              error = "<strong>Success!</strong> Socket has been created. The connection is not yet open.";
+              theClass = "alert alert-success alert-dismissible fade show";
+              break;
+           case 1:
+              error = "<strong>Success!</strong> The connection is open and ready to communicate.";
+              theClass = "alert alert-success alert-dismissible fade show";
+              break;
+           case 2:
+              error = "<strong>Warning!</strong> The connection is in the process of closing.";
+              theClass = "alert alert-warning alert-dismissible fade show";
+              break;
+           case 3:
+              error = "<strong>Error!</strong> The connection is closed or couldn't be opened. Verify server has been started.";
+              theClass = "alert alert-danger alert-dismissible fade show";
+              break;
+           default:
+              error = "<strong>Alert!</strong> Contact support. There is an issue with the websocket connection";
+              theClass = "alert alert-alert alert-dismissible fade show";
+              break;
+        }
+        // output("onerror: " + error);
+        $("#alert").html(error);
+        $("#alert").attr('class', '');
+        $("#alert").attr('class', theClass);
+        $("#alert").show();
+        $("#jobNumber").focus();
+        // console.log(errorNumber);
+      };
+
+    }
+
+    function showLog() {
+        $("#log").toggle();
+    }
+
+    function onSubmit() {
+      var input = document.getElementById("code");
+      // You can send message to the Web Socket using ws.send.
+      ws.send(input.value);
+      output("send: " + input.value);
+      input.value = "";
+      input.focus();
+    }
+
+    function onCloseClick() {
+      ws.close();
+    }
+
+    function output(str) {
+      var log = document.getElementById("log");
+      // var escaped = str.replace(/&/, "&amp;").replace(/</, "&lt;").
+      //   replace(/>/, "&gt;").replace(/"/, "&quot;"); // "
+      var escaped = JSON.stringify(str);
+      var li = document.createElement("li");
+      li.classList.add("list-group-item");
+      li.appendChild(document.createTextNode(escaped));
+      document.getElementById("logList").appendChild(li);
+      // log.innerHTML = escaped + "<br>" + log.innerHTML;
+    }
+  </script>
+
+  <style>
+
+  .bd-example-modal-lg .modal-dialog{
+    display: table;
+    position: relative;
+    margin: 0 auto;
+    top: calc(50% - 24px);
+  }
+
+  .bd-example-modal-lg .modal-dialog .modal-content{
+    background-color: transparent;
+    border: none;
+  }
+
+  .bd-placeholder-img {
+    font-size: 1.125rem;
+    text-anchor: middle;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+
+  @media (min-width: 768px) {
+    .bd-placeholder-img-lg {
+      font-size: 3.5rem;
+    }
+  }
+
+  .alert-auto {display:inline-block;}
+
+  </style>
+
+
+  </head>
+
+  <body onload="init();">
+
+    <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
+      <h1 style="color: #FFFFFF">Sprokit</h1>
+      <!--a class="navbar-brand" href="#">Sprokit</a-->
+      <!--
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarsExampleDefault" aria-controls="navbarsExampleDefault" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarsExampleDefault">
+        <ul class="navbar-nav mr-auto">
+          <li class="nav-item active">
+            <a class="nav-link" href="#">Home <span class="sr-only">(current)</span></a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">Link</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link disabled" href="#">Disabled</a>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="http://example.com" id="dropdown01" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Dropdown</a>
+            <div class="dropdown-menu" aria-labelledby="dropdown01">
+              <a class="dropdown-item" href="#">Action</a>
+              <a class="dropdown-item" href="#">Another action</a>
+              <a class="dropdown-item" href="#">Something else here</a>
+            </div>
+          </li>
+        </ul>
+        <form class="form-inline my-2 my-lg-0">
+          <input class="form-control mr-sm-2" type="text" placeholder="Search" aria-label="Search">
+          <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Search</button>
+        </form>
+      </div>
+    -->
+    </nav>
+
+    <main role="main" class="container">
+
+      <div class="starter-template">
+        <h1>Your Hub for IoT Data!</h1>
+        <p class="lead"></p>
+
+        <div id="connected" class="alert alert-success alert-dismissible fade show" role="alert">
+          <strong>Success!</strong> The connection is open and ready to communicate.
+        </div>
+
+        <div>
+          <div class="form-inline">Job Number: &nbsp;<input type="text" id="jobNumber" name="jobNumber" placeholder="Enter Job Number" value="" />
+            &nbsp;&nbsp;&nbsp;
+            <div id="alert" class="alert alert-warning alert-dismissible fade show" role="alert"><strong>Warning!</strong> You must provide a Job Number!</div>
+          </div>
+        </div>
+
+      </div>
+
+
+
+      <div class="my-4">
+          <table id="example" class="cell-border" style="width:100%">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Job #</th>
+                    <th>Machine Serial #</th>
+                    <th>Power-On Time Total</th>
+                    <th>Start Time</th>
+                </tr>
+            </thead>
+          </table>
+      </div>
+
+      <div>
+          <button type="button" id="btnShowLog" class="btn btn-primary" onclick="showLog();">Show Log</button>
+      </div>
+
+      <div>&nbsp;</div>
+
+      <div id="log" style="display: none">
+          <ul id="logList" class="list-group">
+
+          </ul>
+      </div>
+
+      <div class="modal fade bd-example-modal-lg" data-backdrop="static" data-keyboard="false" tabindex="-1">
+          <div class="modal-dialog modal-sm">
+              <div class="modal-content" style="width: 48px">
+                  <span class="fa fa-spinner fa-spin fa-3x"></span>
+              </div>
+          </div>
+      </div>
+
+    </main><!-- /.container -->
+
+    <!-- Bootstrap core JavaScript
+    ================================================== -->
+    <!-- Placed at the end of the document so the pages load faster -->
+    <script src="js/jquery-3.2.1.slim.min.js" crossorigin="anonymous"></script>
+    <script>window.jQuery || document.write('<script src="js/vendor/jquery-slim.min.js"><\/script>')</script>
+    <script src="js/popper.min.js"></script>
+    <script src="js/bootstrap.min.js"></script>
+    <script src="js/datatables.min.js"></script>
+
+    <script>
+        $(document).ready(function() {
+            $("#connected").hide();
+            $("#alert").hide();
+            $("#jobNumber").focus();
+            var table = $("#example").DataTable();
+            table.init();
+        });
+    </script>
+  </body>
+</html>
