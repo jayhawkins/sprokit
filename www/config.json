@@ -1,4 +1,4 @@
 {
-  "apiUrl": "http://localhost",
-  "port": "5000"
+  "wsUrl": "ws://sprokit.site",
+  "wsPort": "9001"
 }
