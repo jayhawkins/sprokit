@@ -34,6 +34,16 @@ from StringIO import StringIO
 
 from websocket_server import WebsocketServer
 
+import sqlite3
+
+import os.path
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+db_path = os.path.join(BASE_DIR, "sprokit.db")
+with sqlite3.connect(db_path) as conn:
+    curs=conn.cursor()
+    print "Successfully Connected to Database"
+
 continue_reading = True
 card_scanned = False
 jobNumber = ""
@@ -99,20 +109,29 @@ def send_message_to_all(client, server, msg):
 # Capture SIGINT for cleanup when the script is aborted
 def end_read(signal,frame):
     global continue_reading
+    global conn
     print "Ctrl+C captured, ending read."
     continue_reading = False
     GPIO.cleanup()
+    conn.close()
+
+
+##port='/dev/ttyUSB0',
+#xonxoff=True,
+#rtscts=False,
+#dsrdtr=False
 
 
 if __name__ == "__main__":
 
     ser = serial.Serial(
-            port='/dev/ttyS0',
-    	    baudrate = 115200,
-            parity=serial.PARITY_NONE,
-            stopbits=serial.STOPBITS_ONE,
-            bytesize=serial.EIGHTBITS,
-            timeout=1
+        #port='/dev/ttyS0',
+        port='/dev/ttyUSB0',
+        baudrate = 115200,
+        parity=serial.PARITY_EVEN,
+        stopbits=serial.STOPBITS_ONE,
+        bytesize=serial.EIGHTBITS,
+        timeout=1
     )
 
     PORT=9001
@@ -140,11 +159,12 @@ if __name__ == "__main__":
     #cmd = "AT\r\n"
     # Get machine serial number
     cmd = 'Q100\r'
-    cmd = ser.write(bytes(cmd))
-    #ser.write(cmd.encode('ascii'))
+    # ser.write(cmd.encode('ascii'))
+    # cmd = ser.write(bytes(cmd))
+    ser.write(bytes(cmd))
     Q100_response = ser.readline()
     print 'Machine Serial Number is: ' + Q100_response + '\n'
-    # print list(response)
+    print list(Q100_response)
 
     # Get control software version
     cmd = 'Q101\r'
@@ -245,6 +265,8 @@ if __name__ == "__main__":
             #     empID = MIFAREReader.MFRC522_Read(8)
             #     print empID
 
+            print "Job Number: " + jobNumber
+            print "Employee ID: " + employeeID
 
             # Indent this if we bring back the if status check just above
             # Get mode
@@ -301,12 +323,34 @@ if __name__ == "__main__":
             # text = "".join(chr(x) for x in empID)
             text = employeeID
             print text
-
-            # Create JSON object for messaging and database post
-            jsonResponse = '{"userID": "' + str(text) + '", "Q100": "' + str(Q100_response) + '", "Q101": "' + str(Q101_response) + '", "Q102": "' +  str(Q102_response) + '", "Q104": "' + str(Q104_response) + '", "Q201": "' + str(Q201_response) + '", "Q300": "' + str(Q300_response) + '", "Q301": "' + str(Q301_response) + '", "Q303": "' + str(Q303_response) + '", "Q304": "' + str(Q304_response) + '", "Q402": "' + str(Q402_response) + '", "Q403": "' + str(Q403_response) + '", "createdAt": "' + str(createdAt) + '", "status": "' + str(status) + '"}'
-
+            
             Q100_response = "VER M16.01"
             Q300_response = "00027:50:59"
+
+            # I used triple quotes so that I could break this string into
+            # two lines for formatting purposes
+            try:
+                params = (jobNumber,employeeID,Q100_response,Q101_response,Q102_response,
+                Q104_response,Q201_response,Q300_response,Q301_response,Q303_response,
+                Q304_response,Q402_response,Q403_response,status)
+                
+                query_string = """INSERT INTO jobs (jobNumber,userID,Q100_response,Q101_response,Q102_response,Q104_response,
+                Q201_response,Q300_response,Q301_response,Q303_response,Q304_response,Q402_response,Q403_response,status)
+                VALUES
+                (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
+                
+                print query_string
+                
+                curs.execute(query_string,params)
+
+                # commit the changes
+                conn.commit()
+            except sqlite3.Error as error:
+                print "Failed to insert data into table:", error
+                
+            # Create JSON object for messaging and database post
+            jsonResponse = '{"userID": "' + str(text) + '", "Q100": "' + str(Q100_response) + '", "Q101": "' + str(Q101_response) + '", "Q102": "' +  str(Q102_response) + '", "Q104": "' + str(Q104_response) + '", "Q201": "' + str(Q201_response) + '", "Q300": "' + str(Q300_response) + '", "Q301": "' + str(Q301_response) + '", "Q303": "' + str(Q303_response) + '", "Q304": "' + str(Q304_response) + '", "Q402": "' + str(Q402_response) + '", "Q403": "' + str(Q403_response) + '", "createdAt": "' + str(createdAt) + '", "status": "' + str(status) + '"}'
+            
             messageResponse = '{"userID": "' + str(text) + '", "jobNumber": "' + jobNumber + '", "Q100": "' + Q100_response + '", "Q300": "' + str(Q300_response) + '", "createdAt": "' + str(createdAt) + '"}'
 
             server.send_message_to_all(messageResponse)
